@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Demo files
+BAD_FILE_1="fix_deployment.yaml"
+BAD_FILE_2="fix_kubeconform_deployment.yaml"
+POLICY_DIR="policy"
+
+line() {
+    echo "============================================================"
+}
+
+run_checks() {
+    local manifest_file="$1"
+
+    echo
+    line
+    echo " Validating: $manifest_file"
+    line
+    echo
+
+    echo "[1/2] Running Kubernetes schema validation with kubeconform..."
+    echo
+
+    if kubeconform "$manifest_file"; then
+        echo
+        echo "✅ kubeconform PASSED"
+        echo "Manifest is valid according to Kubernetes schema."
+    else
+        echo
+        echo "❌ kubeconform FAILED"
+        echo "Manifest contains invalid Kubernetes configuration."
+        echo "Deployment blocked for: $manifest_file"
+        return 1
+    fi
+
+    echo
+    echo "[2/2] Running policy checks with Conftest..."
+    echo
+
+    if conftest test "$manifest_file" --policy "$POLICY_DIR"; then
+        echo
+        echo "✅ Conftest PASSED"
+        echo "Manifest complies with organizational policies."
+    else
+        echo
+        echo "❌ Conftest FAILED"
+        echo "Manifest violates one or more security or reliability policies."
+        echo "Deployment blocked for: $manifest_file"
+        return 1
+    fi
+
+    echo
+    echo "🎉 All validations passed for: $manifest_file"
+}
+
+echo
+line
+echo " Kubernetes Pre-Deployment Validation Pipeline"
+line
+
+run_checks "$BAD_FILE_1" || true
+run_checks "$BAD_FILE_2" || true
+
+echo
+line
+echo " PIPELINE DEMO COMPLETE"
+line
